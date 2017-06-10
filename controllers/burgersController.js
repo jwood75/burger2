@@ -1,7 +1,8 @@
 var express = require("express");
 
 var router = express.Router();
-var burger = require("../models/burger.js");
+
+var db = require("../models");
 
 // get route -> index
 router.get("/", function(req, res) {
@@ -9,32 +10,68 @@ router.get("/", function(req, res) {
 });
 
 router.get("/burgers", function(req, res) {
-  // express callback response by calling burger.selectAllBurger
-  burger.all(function(burgerData) {
-    // wrapper for orm.js that using MySQL query callback will return burger_data, render to index with handlebar
-    res.render("index", { burger_data: burgerData });
-  });
+    db.Burger.findAll({
+        order: [
+            ["burger_name", "ASC"]
+        ],
+        include: [{
+            model: db.Customer,
+            attributes: ["customer_name"]
+        }]
+    }).then(function(allBurgers) {
+        var hbsObject = {
+            burgers: allBurgers
+        };
+        res.render("index", hbsObject);
+    });
 });
 
-// post route -> back to index
 router.post("/burgers/create", function(req, res) {
-  // takes the request object using it as input for buger.addBurger
-  burger.create(req.body.burger_name, function(result) {
-    // wrapper for orm.js that using MySQL insert callback will return a log to console,
-    // render back to index with handle
-    console.log(result);
-    res.redirect("/");
-  });
+    return db.Burger.create({
+        burger_name: req.body.burgerName
+    }).then(function() {
+        res.redirect("/burgers");
+    });
 });
 
-// put route -> back to index
-router.put("/burgers/update", function(req, res) {
-  burger.update(req.body.burger_id, function(result) {
-    // wrapper for orm.js that using MySQL update callback will return a log to console,
-    // render back to index with handle
-    console.log(result);
-    res.redirect("/");
-  });
+router.put("/burgers/update/devour/:id", function(req, res) {
+    return db.Customer.create({
+        customer_name: req.body.customer
+    }).then(function(newCustomer) {
+        return db.Burger.update({
+            devoured: req.body.devoured,
+            CustomerId: newCustomer.id
+        }, {
+            where: {
+                id: req.params.id
+            },
+            include: [db.Customer]
+        });
+    }).then(function() {
+        res.redirect("/burgers");
+    });
+});
+
+router.put("/burgers/update/return/:id", function(req, res) {
+    return db.Burger.update({
+        devoured: req.body.devoured
+    }, {
+        where: {
+            id: req.params.id
+        }
+    }).then(function() {
+        res.redirect("/burgers");
+    });
+});
+
+router.delete("/burgers/delete/:id", function(req, res) {
+    return db.Burger.destroy({
+        where: {
+            id: req.params.id
+        }
+    }).then(function() {
+        res.redirect("/burgers");
+    });
 });
 
 module.exports = router;
